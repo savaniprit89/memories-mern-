@@ -5,14 +5,18 @@ import bodyParser from 'body-parser'
 import PostMessage from "./postMessage.js";
 import Pusher from 'pusher'
 import dotenv from 'dotenv'
-
+import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
+import User from './user.js'
+import auth from './ath.js'
+//import postRoutes from './routes/posts.js';
 const app=express();
 dotenv.config();
 app.use(bodyParser.json({limit:"100mb",extended:true}));
 app.use(bodyParser.urlencoded({limit:"100mb",extended:true}));
 app.use(cors());
-//deploy heroku and axios url change
-//netlify frontend login sites and got to drap and drop 
+
+//app.use('/posts', postRoutes);
 //npm run build and open in chromo and drag and drop
 //domain setting and option and change url
 
@@ -75,18 +79,63 @@ app.get('/',(req,res)=>{
 })
 
 
-app.post('/upload/post',(req,res)=>{
-    const dbPost= req.body
-    console.log(dbPost)
-   PostMessage.create(dbPost,(err,data)=>{
-        if(err){
-res.status(500).send(err)
-//console.log(err)
-        }
-        else{
-res.status(201).json(data)
-        }
-    })
+app.post('/upload/post',async(req,res)=>{
+    const post = req.body;
+
+    const newPostMessage = new PostMessage({ ...post, creator: req.userId, createdAt: new Date().toISOString() })
+
+    try {
+        await newPostMessage.save();
+
+        res.status(201).json(newPostMessage );
+    } catch (error) {
+        res.status(409).json({ message: error.message });
+    }
+  
+    
+  
+})
+
+app.post('/signin',async(req,res)=>{
+    const { email, password } = req.body;
+    try {
+        const oldUser = await User.findOne({ email });
+    
+        if (!oldUser) return res.status(404).json({ message: "User doesn't exist" });
+    
+        const isPasswordCorrect = await bcrypt.compare(password, oldUser.password);
+    
+        if (!isPasswordCorrect) return res.status(400).json({ message: "Invalid credentials" });
+    
+        const token = jwt.sign({ email: oldUser.email, id: oldUser._id }, 'test', { expiresIn: "1h" });
+    
+        res.status(200).json({ result: oldUser, token });
+      } catch (err) {
+        res.status(500).json({ message: "Something went wrong" });
+      }
+})
+app.post('/signup',async(req,res)=>{
+    console.log("hhh")
+    const { email, password,confirmPassword, firstName, lastName } = req.body;
+
+    try {
+      const oldUser = await User.findOne({ email });
+  
+      if (oldUser) return res.status(400).json({ message: "User already exists" });
+  if(password !== confirmPassword) return res.status(400).json({ message: "password not match" });
+      const hashedPassword = await bcrypt.hash(password, 12);
+  
+      const result = await User.create({ email, password: hashedPassword, name: `${firstName} ${lastName}` });
+  
+      const token = jwt.sign( { email: result.email, id: result._id }, 'test', { expiresIn: "1h" } );
+  
+      res.status(201).json({ result, token });
+    } catch (error) {
+      res.status(500).json({ message: "Something went wrong" });
+      
+      console.log(error);
+    }
+  
 })
 
 app.get('/retrieve/posts',(req,res)=>{
@@ -103,28 +152,42 @@ app.get('/retrieve/posts',(req,res)=>{
 
 app.patch('/:id/updatePost',async (req,res)=>{
     const { id } = req.params;
-    const post = req.body;
+    const {title,message,creator,tags,selectedFile}=req.body
     
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(404).send(`No post with id: ${id}`);
 
-    //const updatedPost = { creator, title, message, tags, selectedFile, _id: id };
+    const updatedPost = { creator, title, message, tags, selectedFile, _id: id };
 
-    const updatedPost= await PostMessage.findByIdAndUpdate(id, {...post,id}, { new: true });
+    await PostMessage.findByIdAndUpdate(id, updatedPost, { new: true });
 
     res.json(updatedPost);
 })
-app.patch('/:id/likePost',async (req,res)=>{
-    const { id } = req.params;
+
+app.patch('/:id/likePost',auth,async (req,res)=>{
     
+    console.log("sdcdsc")
+    console.log(req.userId)
+    const { id } = req.params;
+    if(!req.userId) return res.json({message:"unauthonticated"})
     
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(404).send(`No post with id: ${id}`);
 
     //const updatedPost = { creator, title, message, tags, selectedFile, _id: id };
 
     const post= await PostMessage.findById(id);
-    const updatedPost =await PostMessage.findByIdAndUpdate(id,{likeCount:post.likeCount + 1},{ new: true })
+
+    const index=post.likes.findIndex((id)=> id === String(req.userId))
+
+    if(index== -1){
+        post.likes.push(req.userId)
+    }
+    else{
+        post.likes= post.likes.filter((id)=> id !== String(req.userId));
+    }
+    const updatedPost =await PostMessage.findByIdAndUpdate(id,post,{ new: true })
     res.json(updatedPost);
 })
+
 app.delete('/:id/deletePost',async (req,res)=>{
     const { id } = req.params;
 
@@ -166,3 +229,8 @@ res.status(409).json({ message:err.message})
     res.send('post creation');
 }
 */
+
+//createpost ma auth
+//update post ma auth
+//delete ma auth
+//like ma auth
