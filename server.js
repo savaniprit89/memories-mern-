@@ -138,16 +138,59 @@ app.post('/signup',async(req,res)=>{
   
 })
 
-app.get('/retrieve/posts',(req,res)=>{
-    PostMessage.find((err,data)=>{
-        if(err){
-            res.status(500).send(err)
-                    }
-                    else{
-                       
-            res.status(200).send(data)
-                    }
+
+app.get('/retrieve/posts',async(req,res)=>{
+    const {page} =req.query
+//we page page as number from frontend but converted to string during pass to backebnd
+        try {
+            const LIMIT =8;//post per page
+            const startIndex=(Number(page)-1) * LIMIT  //get startting index of page
+            const total= await PostMessage.countDocuments({})  //how many post we have
+
+            const posts = await PostMessage.find().sort({_id:-1}).limit(LIMIT).skip(startIndex);
+                    
+            res.status(200).json({data:posts,currentPage:Number(page),numberOfPages:Math.ceil(total/LIMIT)});
+        } catch (error) {
+            res.status(404).json({ message: error.message });
+        }
     })
+/*  without pagination code
+app.get('/retrieve/posts',async(req,res)=>{
+console.log("hoo")
+    try {
+        const postMessages = await PostMessage.find();
+                
+        res.status(200).json(postMessages);
+    } catch (error) {
+        res.status(404).json({ message: error.message });
+    }
+})
+*/
+//query /posts/?page=1  page=1
+//params /post/123   id=123  
+
+app.get('/post/:id',async(req,res)=>{
+    const {id} =req.params;
+    try{
+const post=await PostMessage.findById(id)
+res.status(200).json(post)
+    }catch(error){
+        res.status(404).json({ message: error.message });
+    }
+})
+app.get('/search',async(req,res)=>{
+    console.log("sfbjsb")
+   
+ const {searchQuery,tags}=req.query
+    try{
+const title=new RegExp(searchQuery,'i')
+const posts = await PostMessage.find({ $or: [ { title }, { tags: { $in: tags.split(',') } } ]});
+//find post which has title or array of tags contain
+        res.json({ data: posts });
+    }
+    catch(error){
+        res.status(404).json({ message: error.message });
+    }
 })
 
 app.patch('/:id/updatePost',async (req,res)=>{
@@ -187,7 +230,29 @@ app.patch('/:id/likePost',auth,async (req,res)=>{
     const updatedPost =await PostMessage.findByIdAndUpdate(id,post,{ new: true })
     res.json(updatedPost);
 })
+app.post('/:id/commentPost',auth,async (req,res)=>{
+    const {id}=req.params;
+    const {value}=req.body;
 
+    const post= await PostMessage.findById(id);
+    post.comments.push(value);
+    const updatedPost = await PostMessage.findByIdAndUpdate(id, post, { new: true });
+
+    res.json(updatedPost);
+
+
+})
+app.get('/creator',async (req, res) => {
+    const { name } = req.query;
+
+    try {
+        const posts = await PostMessage.find({ name });
+
+        res.json({ data: posts });
+    } catch (error) {    
+        res.status(404).json({ message: error.message });
+    }
+})
 app.delete('/:id/deletePost',async (req,res)=>{
     const { id } = req.params;
 

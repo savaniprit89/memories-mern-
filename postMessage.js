@@ -5,6 +5,7 @@ const postSchema =mongoose.Schema({
     message:String,
     creator:String,
     name:String,
+    comments: { type: [String], default: [] },
     tags:[String],
     selectedFile:String,
     likes:{
