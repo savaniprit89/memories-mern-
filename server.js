@@ -20,7 +20,8 @@ app.use(cors());
 //npm run build and open in chromo and drag and drop
 //domain setting and option and change url
 
-//const CONNECTION_URL='mongodb+srv://prit:Prit@cluster0.praxiix.mongodb.net/memoriesdb?retryWrites=true&w=majority';
+const CONNECTION_URL='mongodb+srv://prit:Prit@cluster0.praxiix.mongodb.net/memoriesdb?retryWrites=true&w=majority';
+
 //Dbname
 
 const PORT=process.env.PORT || 9000;
@@ -32,7 +33,7 @@ const pusher = new Pusher({
     useTLS: true
   });
   
-mongoose.connect(process.env.CONNECTION_URL,{
+mongoose.connect(CONNECTION_URL,{
 useNewUrlParser:true,
 useUnifiedTopology:true
 }).then(()=>{
